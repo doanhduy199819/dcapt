@@ -9307,7 +9307,7 @@ if (response_data.name != vars.get(&quot;app_specific_username&quot;)) {
                 <hashTree/>
               </hashTree>
             </hashTree>
-            <TransactionController guiclass="TransactionControllerGui" testclass="TransactionController" testname="jmeter_app_specific_action" enabled="true">
+            <TransactionController guiclass="TransactionControllerGui" testclass="TransactionController" testname="jmeter_app_specific_action" enabled="false">
               <boolProp name="TransactionController.includeTimers">false</boolProp>
               <boolProp name="TransactionController.parent">true</boolProp>
             </TransactionController>
@@ -9393,18 +9393,7 @@ if (response_data.name != vars.get(&quot;app_specific_username&quot;)) {
                 <stringProp name="HTTPSampler.connect_timeout"></stringProp>
                 <stringProp name="HTTPSampler.response_timeout"></stringProp>
               </HTTPSamplerProxy>
-              <hashTree>
-                <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="assertion after POST request" enabled="true">
-                  <collectionProp name="Asserion.test_strings">
-                    <stringProp name="-787535121">assertion string</stringProp>
-                  </collectionProp>
-                  <stringProp name="Assertion.custom_message"></stringProp>
-                  <stringProp name="Assertion.test_field">Assertion.response_data</stringProp>
-                  <boolProp name="Assertion.assume_success">false</boolProp>
-                  <intProp name="Assertion.test_type">16</intProp>
-                </ResponseAssertion>
-                <hashTree/>
-              </hashTree>
+              <hashTree/>
             </hashTree>
             <IfController guiclass="IfControllerPanel" testclass="IfController" testname="login_as_default_user_if_specific_user_was_loggedin " enabled="true">
               <stringProp name="IfController.condition">${run_as_specific_user}</stringProp>
@@ -9593,6 +9582,386 @@ if ( sleep_time &gt; 0 ) {
               </JSR223Timer>
               <hashTree/>
             </hashTree>
+            <GenericController guiclass="LogicControllerGui" testclass="GenericController" testname="check_hierarchical_field" enabled="true"/>
+            <hashTree>
+              <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Check sum" enabled="true">
+                <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" enabled="true">
+                  <collectionProp name="Arguments.arguments"/>
+                </elementProp>
+                <stringProp name="HTTPSampler.domain"></stringProp>
+                <stringProp name="HTTPSampler.port"></stringProp>
+                <stringProp name="HTTPSampler.protocol"></stringProp>
+                <stringProp name="HTTPSampler.contentEncoding"></stringProp>
+                <stringProp name="HTTPSampler.path">${application.postfix}/browse/${issue_key}</stringProp>
+                <stringProp name="HTTPSampler.method">GET</stringProp>
+                <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+                <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+                <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+                <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+                <stringProp name="HTTPSampler.embedded_url_re"></stringProp>
+                <stringProp name="HTTPSampler.connect_timeout"></stringProp>
+                <stringProp name="HTTPSampler.response_timeout"></stringProp>
+              </HTTPSamplerProxy>
+              <hashTree>
+                <BeanShellAssertion guiclass="BeanShellAssertionGui" testclass="BeanShellAssertion" testname="Check sum" enabled="true">
+                  <stringProp name="BeanShellAssertion.query">import java.util.regex;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.math.BigDecimal;
+
+response = prev.getResponseDataAsString();
+
+//int projectId = 10501;
+//int parentCustomFieldId = 11101; //sum
+//int subtaskCustomFieldId = 11100;
+
+boolean isProjectDP = response.contains(&quot;[\&quot;project-id\&quot;]=\&quot;10501\&quot;&quot;);
+boolean isPanelConfigExist = response.contains(&quot;id=\&quot;hcf-configs-panel_heading\&quot;&quot;);
+
+log.info(&quot;isProjectDP - &quot; + isProjectDP.toString());
+log.info(&quot;isPanelConfigExist - &quot; + isPanelConfigExist.toString());
+
+if (isProjectDP &amp;&amp; isPanelConfigExist) {
+    log.info(&quot;Correct project&quot;);
+    boolean isFieldExist = response.contains(&quot;id=\&quot;rowForcustomfield_11101\&quot;&quot;);
+    boolean isValueExist = response.contains(&quot;id=\&quot;customfield_11101-val\&quot;&quot;);
+
+    log.info(&quot;isFieldExist - &quot; + isFieldExist.toString() + &quot; isValueExist - &quot; + isValueExist.toString());
+
+    if (isFieldExist &amp;&amp; isValueExist) {
+        boolean isSubTaskExist = response.contains(&quot;id=\&quot;view-subtasks_heading\&quot;&quot;);
+        log.info(&quot;isSubTaskExist - &quot; + isSubTaskExist.toString());
+
+        if (isSubTaskExist) {
+
+            Pattern subTaskPattern = Pattern.compile(&quot;&lt;td class=\&quot;customfield_11100\&quot;&gt;(.*?)\n&lt;/td&gt;&quot;);
+            Matcher subTaskMatcher = subTaskPattern.matcher(response);
+
+            BigDecimal sum = new BigDecimal(0);
+
+            while (subTaskMatcher.find()) {
+                String s = subTaskMatcher.group(1);
+                sum = sum.add(new BigDecimal(s.trim()));
+            }
+
+            Pattern parrentPattern = Pattern.compile(&quot;&lt;li id=\&quot;rowForcustomfield_11101\&quot; class=\&quot;item\&quot;&gt;([.\\s\\S]*?)&lt;span&gt;([.\\d]*?)&lt;/span&gt;([.\\s\\S]*?)&lt;/li&gt;&quot;);
+            Matcher parrentMatcher = parrentPattern.matcher(response);
+
+            BigDecimal total;
+
+            while (parrentMatcher.find()) {
+                total = new BigDecimal(parrentMatcher.group(2).trim());
+            }
+
+            log.info(&quot;Sum of subtasks = &quot; + sum);
+            log.info(&quot;Total field value = &quot; + total);
+
+            if (sum.compareTo(total) == 0) {
+                prev.setSuccessful(true);
+
+            } else {
+                prev.setSuccessful(false);
+            }
+        } else {
+            prev.setSuccessful(true);
+        }
+    } else {
+        prev.setSuccessful(false);
+    }
+}
+</stringProp>
+                  <stringProp name="BeanShellAssertion.filename"></stringProp>
+                  <stringProp name="BeanShellAssertion.parameters"></stringProp>
+                  <boolProp name="BeanShellAssertion.resetInterpreter">false</boolProp>
+                </BeanShellAssertion>
+                <hashTree/>
+              </hashTree>
+              <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Check mean" enabled="true">
+                <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" enabled="true">
+                  <collectionProp name="Arguments.arguments"/>
+                </elementProp>
+                <stringProp name="HTTPSampler.domain"></stringProp>
+                <stringProp name="HTTPSampler.port"></stringProp>
+                <stringProp name="HTTPSampler.protocol"></stringProp>
+                <stringProp name="HTTPSampler.contentEncoding"></stringProp>
+                <stringProp name="HTTPSampler.path">${application.postfix}/browse/${issue_key}</stringProp>
+                <stringProp name="HTTPSampler.method">GET</stringProp>
+                <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+                <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+                <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+                <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+                <stringProp name="HTTPSampler.embedded_url_re"></stringProp>
+                <stringProp name="HTTPSampler.connect_timeout"></stringProp>
+                <stringProp name="HTTPSampler.response_timeout"></stringProp>
+              </HTTPSamplerProxy>
+              <hashTree>
+                <BeanShellAssertion guiclass="BeanShellAssertionGui" testclass="BeanShellAssertion" testname="Check mean" enabled="true">
+                  <stringProp name="BeanShellAssertion.query">import java.math.MathContext;
+import java.util.regex;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.math.BigDecimal;
+
+response = prev.getResponseDataAsString();
+
+//int projectId = 10501;
+//int parentCustomFieldId = 11104; // mean (average)
+//int subtaskCustomFieldId = 11100;
+
+boolean isProjectDP = response.contains(&quot;[\&quot;project-id\&quot;]=\&quot;10501\&quot;&quot;);
+boolean isPanelConfigExist = response.contains(&quot;id=\&quot;hcf-configs-panel_heading\&quot;&quot;);
+
+log.info(&quot;isProjectDP - &quot; + isProjectDP.toString());
+log.info(&quot;isPanelConfigExist - &quot; + isPanelConfigExist.toString());
+
+if (isProjectDP &amp;&amp; isPanelConfigExist) {
+    log.info(&quot;Correct project&quot;);
+    boolean isFieldExist = response.contains(&quot;id=\&quot;rowForcustomfield_11104\&quot;&quot;);
+    boolean isValueExist = response.contains(&quot;id=\&quot;customfield_11104-val\&quot;&quot;);
+
+    log.info(&quot;isFieldExist - &quot; + isFieldExist.toString() + &quot; isValueExist - &quot; + isValueExist.toString());
+
+    if (isFieldExist &amp;&amp; isValueExist) {
+        boolean isSubTaskExist = response.contains(&quot;id=\&quot;view-subtasks_heading\&quot;&quot;);
+        log.info(&quot;isSubTaskExist - &quot; + isSubTaskExist.toString());
+
+        if (isSubTaskExist) {
+
+            Pattern subTaskPattern = Pattern.compile(&quot;&lt;td class=\&quot;customfield_11100\&quot;&gt;(.*?)\n&lt;/td&gt;&quot;);
+            Matcher subTaskMatcher = subTaskPattern.matcher(response);
+
+            BigDecimal sum = new BigDecimal(0);
+            BigDecimal mean;
+            int subTasks = 0;
+
+            while (subTaskMatcher.find()) {
+                String s = subTaskMatcher.group(1);
+                sum = sum.add(new BigDecimal(s.trim()));
+                subTasks += 1;
+            }
+            log.info(&quot;Sum = &quot; + sum);
+            log.info(&quot;subTasks = &quot; + subTasks);
+            mean = (subTasks == 0) ? new BigDecimal(0) : sum.divide(new BigDecimal(subTasks), new MathContext(3));
+            mean.add(new BigDecimal(1));
+
+            Pattern parrentPattern = Pattern.compile(&quot;&lt;li id=\&quot;rowForcustomfield_11104\&quot; class=\&quot;item\&quot;&gt;([.\\s\\S]*?)&lt;span&gt;([.\\d]*?)&lt;/span&gt;([.\\s\\S]*?)&lt;/li&gt;&quot;);
+            Matcher parrentMatcher = parrentPattern.matcher(response);
+
+            BigDecimal total;
+
+            while (parrentMatcher.find()) {
+                total = new BigDecimal(parrentMatcher.group(2).trim());
+            }
+
+            log.info(&quot;Mean of subtasks = &quot; + mean);
+            log.info(&quot;Total field value = &quot; + total);
+
+            if (mean.compareTo(total) == 0) {
+                prev.setSuccessful(true);
+            } else {
+                prev.setSuccessful(false);
+            }
+        }
+        else {
+            prev.setSuccessful(true);
+        }
+    } else {
+        prev.setSuccessful(false);
+    }
+}
+</stringProp>
+                  <stringProp name="BeanShellAssertion.filename"></stringProp>
+                  <stringProp name="BeanShellAssertion.parameters"></stringProp>
+                  <boolProp name="BeanShellAssertion.resetInterpreter">false</boolProp>
+                </BeanShellAssertion>
+                <hashTree/>
+              </hashTree>
+              <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Check max" enabled="true">
+                <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" enabled="true">
+                  <collectionProp name="Arguments.arguments"/>
+                </elementProp>
+                <stringProp name="HTTPSampler.domain"></stringProp>
+                <stringProp name="HTTPSampler.port"></stringProp>
+                <stringProp name="HTTPSampler.protocol"></stringProp>
+                <stringProp name="HTTPSampler.contentEncoding"></stringProp>
+                <stringProp name="HTTPSampler.path">${application.postfix}/browse/${issue_key}</stringProp>
+                <stringProp name="HTTPSampler.method">GET</stringProp>
+                <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+                <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+                <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+                <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+                <stringProp name="HTTPSampler.embedded_url_re"></stringProp>
+                <stringProp name="HTTPSampler.connect_timeout"></stringProp>
+                <stringProp name="HTTPSampler.response_timeout"></stringProp>
+              </HTTPSamplerProxy>
+              <hashTree>
+                <BeanShellAssertion guiclass="BeanShellAssertionGui" testclass="BeanShellAssertion" testname="Check max" enabled="true">
+                  <stringProp name="BeanShellAssertion.query">import java.util.regex;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.math.BigDecimal;
+
+response = prev.getResponseDataAsString();
+
+//int projectId = 10501;
+//int parentCustomFieldId = 11102; // max
+//int subtaskCustomFieldId = 11100;
+
+boolean isProjectDP = response.contains(&quot;[\&quot;project-id\&quot;]=\&quot;10501\&quot;&quot;);
+boolean isPanelConfigExist = response.contains(&quot;id=\&quot;hcf-configs-panel_heading\&quot;&quot;);
+
+log.info(&quot;isProjectDP - &quot; + isProjectDP.toString());
+log.info(&quot;isPanelConfigExist - &quot; + isPanelConfigExist.toString());
+
+if (isProjectDP &amp;&amp; isPanelConfigExist) {
+    log.info(&quot;Correct project&quot;);
+    boolean isFieldExist = response.contains(&quot;id=\&quot;rowForcustomfield_11102\&quot;&quot;);
+    boolean isValueExist = response.contains(&quot;id=\&quot;customfield_11102-val\&quot;&quot;);
+
+    log.info(&quot;isFieldExist - &quot; + isFieldExist.toString() + &quot; isValueExist - &quot; + isValueExist.toString());
+
+    if (isFieldExist &amp;&amp; isValueExist) {
+        boolean isSubTaskExist = response.contains(&quot;id=\&quot;view-subtasks_heading\&quot;&quot;);
+        log.info(&quot;isSubTaskExist - &quot; + isSubTaskExist.toString());
+
+        if (isSubTaskExist) {
+
+            Pattern subTaskPattern = Pattern.compile(&quot;&lt;td class=\&quot;customfield_11100\&quot;&gt;(.*?)\n&lt;/td&gt;&quot;);
+            Matcher subTaskMatcher = subTaskPattern.matcher(response);
+
+            BigDecimal max = new BigDecimal(0);
+
+            while (subTaskMatcher.find()) {
+                String s = subTaskMatcher.group(1);
+                max = max.max(new BigDecimal(s.trim()));
+            }
+
+            Pattern parrentPattern = Pattern.compile(&quot;&lt;li id=\&quot;rowForcustomfield_11102\&quot; class=\&quot;item\&quot;&gt;([.\\s\\S]*?)&lt;span&gt;([.\\d]*?)&lt;/span&gt;([.\\s\\S]*?)&lt;/li&gt;&quot;);
+            Matcher parrentMatcher = parrentPattern.matcher(response);
+
+            BigDecimal total;
+
+            while (parrentMatcher.find()) {
+                total = new BigDecimal(parrentMatcher.group(2).trim());
+            }
+
+            log.info(&quot;Max of subtasks = &quot; + max);
+            log.info(&quot;Total field value = &quot; + total);
+
+            if (max.compareTo(total) == 0) {
+                prev.setSuccessful(true);
+
+            } else {
+                prev.setSuccessful(false);
+            }
+        } else {
+            prev.setSuccessful(true);
+        }
+    } else {
+        prev.setSuccessful(false);
+    }
+}
+</stringProp>
+                  <stringProp name="BeanShellAssertion.filename"></stringProp>
+                  <stringProp name="BeanShellAssertion.parameters"></stringProp>
+                  <boolProp name="BeanShellAssertion.resetInterpreter">false</boolProp>
+                </BeanShellAssertion>
+                <hashTree/>
+              </hashTree>
+              <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Check min" enabled="true">
+                <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" enabled="true">
+                  <collectionProp name="Arguments.arguments"/>
+                </elementProp>
+                <stringProp name="HTTPSampler.domain"></stringProp>
+                <stringProp name="HTTPSampler.port"></stringProp>
+                <stringProp name="HTTPSampler.protocol"></stringProp>
+                <stringProp name="HTTPSampler.contentEncoding"></stringProp>
+                <stringProp name="HTTPSampler.path">${application.postfix}/browse/${issue_key}</stringProp>
+                <stringProp name="HTTPSampler.method">GET</stringProp>
+                <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+                <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+                <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+                <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+                <stringProp name="HTTPSampler.embedded_url_re"></stringProp>
+                <stringProp name="HTTPSampler.connect_timeout"></stringProp>
+                <stringProp name="HTTPSampler.response_timeout"></stringProp>
+              </HTTPSamplerProxy>
+              <hashTree>
+                <BeanShellAssertion guiclass="BeanShellAssertionGui" testclass="BeanShellAssertion" testname="Check min" enabled="true">
+                  <stringProp name="BeanShellAssertion.query">import java.util.regex;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.math.BigDecimal;
+
+response = prev.getResponseDataAsString();
+
+//int projectId = 10501;
+//int parentCustomFieldId = 11103; // min
+//int subtaskCustomFieldId = 11100;
+
+boolean isProjectDP = response.contains(&quot;[\&quot;project-id\&quot;]=\&quot;10501\&quot;&quot;);
+boolean isPanelConfigExist = response.contains(&quot;id=\&quot;hcf-configs-panel_heading\&quot;&quot;);
+
+log.info(&quot;isProjectDP - &quot; + isProjectDP.toString());
+log.info(&quot;isPanelConfigExist - &quot; + isPanelConfigExist.toString());
+
+if (isProjectDP &amp;&amp; isPanelConfigExist) {
+    log.info(&quot;Correct project&quot;);
+    boolean isFieldExist = response.contains(&quot;id=\&quot;rowForcustomfield_11103\&quot;&quot;);
+    boolean isValueExist = response.contains(&quot;id=\&quot;customfield_11103-val\&quot;&quot;);
+
+    log.info(&quot;isFieldExist - &quot; + isFieldExist.toString() + &quot; isValueExist - &quot; + isValueExist.toString());
+
+    if (isFieldExist &amp;&amp; isValueExist) {
+        boolean isSubTaskExist = response.contains(&quot;id=\&quot;view-subtasks_heading\&quot;&quot;);
+        log.info(&quot;isSubTaskExist - &quot; + isSubTaskExist.toString());
+
+        if (isSubTaskExist) {
+
+            Pattern subTaskPattern = Pattern.compile(&quot;&lt;td class=\&quot;customfield_11100\&quot;&gt;(.*?)\n&lt;/td&gt;&quot;);
+            Matcher subTaskMatcher = subTaskPattern.matcher(response);
+
+            BigDecimal min = new BigDecimal(0);
+
+            while (subTaskMatcher.find()) {
+                String s = subTaskMatcher.group(1);
+                min = min.min(new BigDecimal(s.trim()));
+            }
+
+            Pattern parrentPattern = Pattern.compile(&quot;&lt;li id=\&quot;rowForcustomfield_11103\&quot; class=\&quot;item\&quot;&gt;([.\\s\\S]*?)&lt;span&gt;([.\\d]*?)&lt;/span&gt;([.\\s\\S]*?)&lt;/li&gt;&quot;);
+            Matcher parrentMatcher = parrentPattern.matcher(response);
+
+            BigDecimal total;
+
+            while (parrentMatcher.find()) {
+                total = new BigDecimal(parrentMatcher.group(2).trim());
+            }
+
+            log.info(&quot;Min of subtasks = &quot; + min);
+            log.info(&quot;Total field value = &quot; + total);
+
+            if (min.compareTo(total) == 0) {
+                prev.setSuccessful(true);
+
+            } else {
+                prev.setSuccessful(false);
+            }
+        }
+        else {
+            prev.setSuccessful(true);
+        }
+    } else {
+        prev.setSuccessful(false);
+    }
+}
+</stringProp>
+                  <stringProp name="BeanShellAssertion.filename"></stringProp>
+                  <stringProp name="BeanShellAssertion.parameters"></stringProp>
+                  <boolProp name="BeanShellAssertion.resetInterpreter">false</boolProp>
+                </BeanShellAssertion>
+                <hashTree/>
+              </hashTree>
+            </hashTree>
           </hashTree>
           <DebugSampler guiclass="TestBeanGUI" testclass="DebugSampler" testname="debug sampler" enabled="false">
             <boolProp name="displayJMeterProperties">false</boolProp>
@@ -9602,7 +9971,7 @@ if ( sleep_time &gt; 0 ) {
           <hashTree/>
         </hashTree>
       </hashTree>
-      <ResultCollector guiclass="ViewResultsFullVisualizer" testclass="ResultCollector" testname="View Results Tree" enabled="false">
+      <ResultCollector guiclass="ViewResultsFullVisualizer" testclass="ResultCollector" testname="View Results Tree" enabled="true">
         <boolProp name="ResultCollector.error_logging">false</boolProp>
         <objProp>
           <name>saveConfig</name>
